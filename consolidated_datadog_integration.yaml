@@ -34,7 +34,9 @@ Parameters:
     Type: String
     Description: >-
       A comma separated list of relevant Datadog products you want to use with this account.
-      Chose from: Infrastructure Monitoring, Serverless Monitoring, Log Management, Cloud Security Posture Management
+      Chose from: Infrastructure Monitoring, Serverless Monitoring, Log Management. If you want
+      Cloud Security Posture Management enabled, please set it to true in the CloudSecurityPostureManagementPermissions
+      variable
     Default: "Infrastructure Monitoring,Serverless Monitoring,Log Management"
   IAMRoleName:
     Description: Customize the name of IAM role for Datadog AWS integration
@@ -52,7 +54,7 @@ Parameters:
       or send logs using AWS PrivateLink should select “no” and install this independently
       (https://docs.datadoghq.com/serverless/libraries_integrations/forwarder/#installation).
     Default: true
-    LogArchives:
+  LogArchives:
     Description: >-
       S3 paths to store log archives for log rehydration. Separate multiple paths with comma,
       e.g., "my-bucket,my-bucket-with-path/path".
@@ -74,45 +76,6 @@ Parameters:
     Description: >-
       Set this value to "true" to add permissions for Datadog's Cloud Security Posture Management product
       to monitor your AWS cloud resource configurations.
-  # A workaround for being unable to check list contains
-  CloudSecurityPostureManagementPermissions:
-    Fn::Or:
-      - Fn::Equals:
-        - Fn::Select:
-          - 0
-          - Fn::Split:
-            - ","
-            - Fn::Sub:
-              - ${ProductIds},,,,,
-              - { ProductIds: !Join [',', !Split [",", !Ref Products]] }
-        - "Cloud Security Posture Management"
-      - Fn::Equals:
-        - Fn::Select:
-          - 1
-          - Fn::Split:
-            - ","
-            - Fn::Sub:
-              - ${ProductIds},,,,,
-              - { ProductIds: !Join [',', !Split [",", !Ref Products]] }
-        - "Cloud Security Posture Management"
-      - Fn::Equals:
-        - Fn::Select:
-          - 2
-          - Fn::Split:
-            - ","
-            - Fn::Sub:
-              - ${ProductIds},,,,,
-              - { ProductIds: !Join [',', !Split [",", !Ref Products]] }
-        - "Cloud Security Posture Management"
-      - Fn::Equals:
-        - Fn::Select:
-          - 3
-          - Fn::Split:
-            - ","
-            - Fn::Sub:
-              - ${ProductIds},,,,,
-              - { ProductIds: !Join [',', !Split [",", !Ref Products]] }
-        - "Cloud Security Posture Management"
   DdApiKeySecretArn:
     Type: String
     AllowedPattern: "arn:.*:secretsmanager:.*"
@@ -314,6 +277,10 @@ Parameters:
     Default: ""
     Description: The name of the forwarder bucket to create. If not provided, AWS will generate a unique name.
 Conditions:
+  ShouldInstallCSPMPolicy:
+    Fn::Equals:
+      - Ref: CloudSecurityPostureManagementPermissions
+      - true
   IsAWSChina:
     Fn::Equals:
       - Ref: AWS::Partition
@@ -721,7 +688,7 @@ Resources:
                 'sts:ExternalId': !GetAtt DatadogAPICall.Outputs.ExternalId
       Path: /
       RoleName: !Ref IAMRoleName
-      ManagedPolicyArns: !If [ CloudSecurityPostureManagementPermissions, [ !Sub "arn:${AWS::Partition}:iam::aws:policy/SecurityAudit" ], !Ref AWS::NoValue ]
+      ManagedPolicyArns: !If [ ShouldInstallCSPMPolicy, [ !Sub "arn:${AWS::Partition}:iam::aws:policy/SecurityAudit" ], !Ref AWS::NoValue ]
       Policies:
         - PolicyName: DatadogAWSIntegrationPolicy
           PolicyDocument:
